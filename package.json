@@ -3,10 +3,29 @@
   "module": "index.ts",
   "type": "module",
   "private": true,
+  "scripts": {
+    "dev": "bun --hot index.ts",
+    "start": "bun index.ts"
+  },
   "devDependencies": {
-    "@types/bun": "latest"
+    "@types/bun": "latest",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/pg": "^8.20.0",
+    "prisma": "^7.8.0"
   },
   "peerDependencies": {
-    "typescript": "^5"
+    "typescript": "^7.0.2"
+  },
+  "dependencies": {
+    "@clerk/backend": "^3.11.5",
+    "@clerk/express": "^2.1.41",
+    "@prisma/adapter-pg": "^7.8.0",
+    "@prisma/client": "^7.8.0",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "pg": "^8.22.0",
+    "svix": "^1.96.1"
   }
 }
