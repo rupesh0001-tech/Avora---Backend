@@ -41,9 +41,27 @@ model EventType {
   availability    Json?    // Week days & time slots configuration
   bookingFields   Json?    // Custom booking form fields toggle & config
   appearance      String   @default("classic") // Appearance layout selection
+  bookings        Booking[]
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
   @@unique([userId, slug])
   @@map("event_types")
+}
+
+model Booking {
+  id                String    @id @default(cuid())
+  eventTypeId       String
+  eventType         EventType @relation(fields: [eventTypeId], references: [id], onDelete: Cascade)
+  startTime         DateTime
+  endTime           DateTime
+  status            String    @default("confirmed") // e.g. confirmed, cancelled
+  attendeeName      String
+  attendeeEmail     String
+  attendeePhone     String?
+  bookingFieldsData Json?     // JSON mapping custom answers { "notes": "...", "guests": [...] }
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@map("bookings")
 }

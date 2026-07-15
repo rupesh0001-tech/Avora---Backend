@@ -2,6 +2,7 @@ import { Router } from "express";
 import authRoutes from "../modules/auth/routes/auth.routes";
 import userRoutes from "../modules/users/routes/users.routes";
 import eventRoutes from "../modules/events/routes/events.routes";
+import bookingsRoutes from "../modules/bookings/routes/bookings.routes";
 
 const router = Router();
 
@@ -9,5 +10,6 @@ const router = Router();
 router.use("/auth", authRoutes);
 router.use("/users", userRoutes);
 router.use("/events", eventRoutes);
+router.use("/bookings", bookingsRoutes);
 
 export default router;
