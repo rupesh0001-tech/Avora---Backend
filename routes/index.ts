@@ -1,16 +1,13 @@
 import { Router } from "express";
 import authRoutes from "../modules/auth/routes/auth.routes";
-import webhookRoutes from "../modules/webhooks/routes/clerk.routes";
+import userRoutes from "../modules/users/routes/users.routes";
+import eventRoutes from "../modules/events/routes/events.routes";
 
 const router = Router();
 
-// Mount modules
+// Register module subrouters
 router.use("/auth", authRoutes);
-router.use("/webhooks", webhookRoutes);
-
-// Health check endpoint
-router.get("/health", (req, res) => {
-  res.json({ status: "OK", timestamp: new Date() });
-});
+router.use("/users", userRoutes);
+router.use("/events", eventRoutes);
 
 export default router;

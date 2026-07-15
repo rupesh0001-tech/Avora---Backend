@@ -35,7 +35,14 @@ export class UsersRepository {
     });
   }
 
+  async findByUsername(username: string) {
+    return prisma.user.findUnique({
+      where: { username },
+    });
+  }
+
   async update(id: string, data: Partial<{
+    username: string | null;
     firstName: string | null;
     lastName: string | null;
     imageUrl: string | null;

@@ -12,15 +12,38 @@ datasource db {
 }
 
 model User {
-  id        String   @id // Clerk User ID
-  email     String   @unique
-  firstName String?
-  lastName  String?
-  imageUrl  String?
-  timezone  String   @default("UTC")
-  locale    String   @default("en")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id         String      @id // Clerk User ID
+  email      String      @unique
+  username   String?     @unique
+  firstName  String?
+  lastName   String?
+  imageUrl   String?
+  timezone   String      @default("UTC")
+  locale     String      @default("en")
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  eventTypes EventType[]
 
   @@map("users")
+}
+
+model EventType {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title           String
+  slug            String
+  duration        Int
+  price           Float    @default(0)
+  isActive        Boolean  @default(true)
+  locationType    String   @default("Video")
+  locationDetails String   @default("Google Meet")
+  availability    Json?    // Week days & time slots configuration
+  bookingFields   Json?    // Custom booking form fields toggle & config
+  appearance      String   @default("classic") // Appearance layout selection
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([userId, slug])
+  @@map("event_types")
 }

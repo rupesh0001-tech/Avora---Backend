@@ -1,13 +1,8 @@
 import app from "./app";
 import { env } from "./config/env";
 
-const server = app.listen(env.PORT, () => {
-  console.log(`🚀 Avora Backend running at http://localhost:${env.PORT}`);
-});
+const port = env.PORT || 5001;
 
-process.on("SIGTERM", () => {
-  console.log("SIGTERM received, shutting down gracefully...");
-  server.close(() => {
-    console.log("Process terminated.");
-  });
+app.listen(port, () => {
+  console.log(`🚀 Backend server is running at http://localhost:${port}`);
 });

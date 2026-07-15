@@ -27,7 +27,12 @@ export class UsersService {
     return this.usersRepository.create(data);
   }
 
+  async getUserByUsername(username: string) {
+    return this.usersRepository.findByUsername(username);
+  }
+
   async updateUser(id: string, data: Partial<{
+    username: string | null;
     firstName: string | null;
     lastName: string | null;
     imageUrl: string | null;

@@ -1,5 +1,5 @@
-import { Response } from "express";
-import { AuthenticatedRequest } from "../../../common/middleware/auth.middleware";
+import type { Response } from "express";
+import type { AuthenticatedRequest } from "../../../common/middleware/auth.middleware";
 
 export class AuthController {
   async getMe(req: AuthenticatedRequest, res: Response) {
