@@ -12,17 +12,18 @@ datasource db {
 }
 
 model User {
-  id         String      @id // Clerk User ID
-  email      String      @unique
-  username   String?     @unique
-  firstName  String?
-  lastName   String?
-  imageUrl   String?
-  timezone   String      @default("UTC")
-  locale     String      @default("en")
-  createdAt  DateTime    @default(now())
-  updatedAt  DateTime    @updatedAt
-  eventTypes EventType[]
+  id            String         @id // Clerk User ID
+  email         String         @unique
+  username      String?        @unique
+  firstName     String?
+  lastName      String?
+  imageUrl      String?
+  timezone      String         @default("UTC")
+  locale        String         @default("en")
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  eventTypes    EventType[]
+  hostAnalytics HostAnalytics?
 
   @@map("users")
 }
@@ -64,4 +65,16 @@ model Booking {
   updatedAt         DateTime  @updatedAt
 
   @@map("bookings")
+}
+
+model HostAnalytics {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  totalBookings Int      @default(0)
+  totalRevenue  Float    @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("host_analytics")
 }

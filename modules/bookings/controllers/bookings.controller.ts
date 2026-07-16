@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 import { BookingsService } from "../services/bookings.service";
+import { emailQueue, calendarQueue, analyticsQueue } from "../../../queues/booking-queues";
 
 const bookingsService = new BookingsService();
 
@@ -11,7 +12,7 @@ export async function createBooking(req: Request, res: Response) {
       return res.status(400).json({ error: "Missing required booking details." });
     }
 
-    const booking = await bookingsService.createBooking({
+    const { booking, razorpayOrder } = await bookingsService.createBooking({
       eventTypeId,
       startTime,
       attendeeName,
@@ -20,7 +21,23 @@ export async function createBooking(req: Request, res: Response) {
       bookingFieldsData,
     });
 
-    return res.status(201).json({ success: true, booking });
+    if (booking.status === "confirmed") {
+      await emailQueue.add("booking-confirmation", {
+        bookingId: booking.id,
+        type: "booking-confirmation",
+      });
+
+      await calendarQueue.add("create-event", {
+        bookingId: booking.id,
+        action: "create-event",
+      });
+
+      await analyticsQueue.add("update-stats", {
+        bookingId: booking.id,
+      });
+    }
+
+    return res.status(201).json({ success: true, booking, razorpayOrder });
   } catch (err: any) {
     console.error("Error creating booking:", err);
     return res.status(500).json({ error: err.message || "Failed to create booking." });

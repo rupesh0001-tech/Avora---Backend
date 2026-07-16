@@ -1,5 +1,12 @@
+import Razorpay from "razorpay";
+import { env } from "../../../config/env";
 import { BookingsRepository } from "../repositories/bookings.repository";
 import { prisma } from "../../../config/database";
+
+const razorpay = new Razorpay({
+  key_id: env.RAZORPAY_KEY_ID || "rzp_test_12345",
+  key_secret: env.RAZORPAY_KEY_SECRET || "razorpay_secret_12345",
+});
 
 export class BookingsService {
   private bookingsRepository: BookingsRepository;
@@ -26,10 +33,12 @@ export class BookingsService {
     }
 
     const start = new Date(data.startTime);
-    // Calculate end time: startTime + duration (minutes)
     const end = new Date(start.getTime() + eventType.duration * 60 * 1000);
 
-    return this.bookingsRepository.createBooking({
+    const isPaid = eventType.price > 0;
+    const status = isPaid ? "pending_payment" : "confirmed";
+
+    const booking = await this.bookingsRepository.createBooking({
       eventTypeId: data.eventTypeId,
       startTime: start,
       endTime: end,
@@ -37,7 +46,35 @@ export class BookingsService {
       attendeeEmail: data.attendeeEmail,
       attendeePhone: data.attendeePhone,
       bookingFieldsData: data.bookingFieldsData,
+      status,
     });
+
+    let razorpayOrder = null;
+    if (isPaid) {
+      try {
+        const order = await razorpay.orders.create({
+          amount: Math.round(eventType.price * 100), // in paise
+          currency: "INR",
+          receipt: booking.id,
+          notes: {
+            bookingId: booking.id,
+          },
+        });
+        razorpayOrder = {
+          id: order.id,
+          amount: order.amount,
+          currency: order.currency,
+          key: env.RAZORPAY_KEY_ID || "rzp_test_12345",
+        };
+      } catch (err) {
+        console.error("Razorpay order creation failed, proceeding without order details:", err);
+      }
+    }
+
+    return {
+      booking,
+      razorpayOrder,
+    };
   }
 
   // Retrieve bookings list for a specific host

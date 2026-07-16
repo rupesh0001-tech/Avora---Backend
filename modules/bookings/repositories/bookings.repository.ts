@@ -17,6 +17,7 @@ export class BookingsRepository {
     attendeeEmail: string;
     attendeePhone?: string;
     bookingFieldsData?: any;
+    status?: string;
   }) {
     return this.prisma.booking.create({
       data: {
@@ -27,6 +28,7 @@ export class BookingsRepository {
         attendeeEmail: data.attendeeEmail,
         attendeePhone: data.attendeePhone,
         bookingFieldsData: data.bookingFieldsData,
+        status: data.status || "confirmed",
       },
       include: {
         eventType: true,

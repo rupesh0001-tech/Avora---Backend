@@ -10,7 +10,11 @@ app.use(cors({
   origin: "http://localhost:3000", // Frontend port
   credentials: true,
 }));
-app.use(express.json());
+app.use(express.json({
+  verify: (req: any, res, buf) => {
+    req.rawBody = buf.toString();
+  }
+}));
 app.use(express.urlencoded({ extended: true }));
 
 // Initialize Clerk middleware to populate auth context
