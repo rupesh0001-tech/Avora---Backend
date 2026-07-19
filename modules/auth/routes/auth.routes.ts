@@ -106,4 +106,49 @@ router.delete("/google/disconnect", requireAuth as any, async (req: Request, res
   }
 });
 
+// GET /api/auth/google/settings - Retrieve calendar integration settings
+router.get("/google/settings", requireAuth as any, async (req: Request, res: Response) => {
+  try {
+    const userId = (req as AuthenticatedRequest).user?.id;
+    const account = await prisma.googleAccount.findUnique({
+      where: { clerkUserId: userId },
+    });
+    if (!account) {
+      return res.status(404).json({ error: "Google account not connected." });
+    }
+    const settings = (account.settings as any) || {
+      syncEnabled: true,
+      addMeetLink: true,
+      deleteOnCancel: true,
+    };
+    return res.json({ settings });
+  } catch (err) {
+    console.error("Error fetching Google settings:", err);
+    return res.status(500).json({ error: "Failed to retrieve calendar sync settings." });
+  }
+});
+
+// PUT /api/auth/google/settings - Save calendar integration settings
+router.put("/google/settings", requireAuth as any, async (req: Request, res: Response) => {
+  try {
+    const userId = (req as AuthenticatedRequest).user?.id;
+    const { syncEnabled, addMeetLink, deleteOnCancel } = req.body;
+
+    await prisma.googleAccount.update({
+      where: { clerkUserId: userId },
+      data: {
+        settings: {
+          syncEnabled: syncEnabled !== false,
+          addMeetLink: addMeetLink !== false,
+          deleteOnCancel: deleteOnCancel !== false,
+        },
+      },
+    });
+    return res.json({ success: true });
+  } catch (err) {
+    console.error("Error updating Google settings:", err);
+    return res.status(500).json({ error: "Failed to save calendar sync settings." });
+  }
+});
+
 export default router;
