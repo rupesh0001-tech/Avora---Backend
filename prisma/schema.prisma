@@ -20,6 +20,7 @@ model User {
   imageUrl      String?
   timezone      String         @default("UTC")
   locale        String         @default("en")
+  availability  Json?          // General working hours/availability schedule
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
   eventTypes    EventType[]

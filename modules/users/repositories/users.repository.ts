@@ -48,6 +48,7 @@ export class UsersRepository {
     imageUrl: string | null;
     timezone: string;
     locale: string;
+    availability: any;
   }>) {
     return prisma.user.update({
       where: { id },

@@ -25,7 +25,7 @@ export class EventsController {
   getEvent = async (req: AuthenticatedRequest, res: Response) => {
     try {
       const userId = req.user?.id;
-      const id = req.params.id as string;
+      const id = req.params.id as string ;
       if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
       const event = await this.eventsService.getEventById(id);

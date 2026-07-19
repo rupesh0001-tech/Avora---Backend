@@ -38,6 +38,7 @@ export class UsersService {
     imageUrl: string | null;
     timezone: string;
     locale: string;
+    availability: any;
   }>) {
     return this.usersRepository.update(id, data);
   }

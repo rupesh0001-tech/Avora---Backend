@@ -1,4 +1,5 @@
 import { EventsRepository } from "../repositories/events.repository";
+import { prisma } from "../../../config/database";
 
 const DEFAULT_BOOKING_FIELDS = [
   { id: "name", label: "Your name", type: "Name", status: "Required", editable: false },
@@ -10,7 +11,7 @@ const DEFAULT_BOOKING_FIELDS = [
   { id: "rescheduleReason", label: "Reason for reschedule", type: "Long Text", status: "Optional", editable: true }
 ];
 
-const DEFAULT_AVAILABILITY = [
+export const DEFAULT_AVAILABILITY = [
   { day: "Monday", enabled: true, slots: [{ startTime: "09:00", endTime: "17:00" }] },
   { day: "Tuesday", enabled: true, slots: [{ startTime: "09:00", endTime: "17:00" }] },
   { day: "Wednesday", enabled: true, slots: [{ startTime: "09:00", endTime: "17:00" }] },
@@ -53,10 +54,16 @@ export class EventsService {
       throw new Error(`An event type with slug "${slug}" already exists.`);
     }
 
+    const user = await prisma.user.findUnique({
+      where: { id: data.userId },
+      select: { availability: true }
+    });
+    const availability = user?.availability || DEFAULT_AVAILABILITY;
+
     return this.eventsRepository.create({
       ...data,
       slug,
-      availability: DEFAULT_AVAILABILITY,
+      availability,
       bookingFields: DEFAULT_BOOKING_FIELDS,
     });
   }

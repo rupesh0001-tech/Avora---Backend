@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 import { UsersService } from "../services/users.service";
 import type { AuthenticatedRequest } from "../../../common/middleware/auth.middleware";
+import { DEFAULT_AVAILABILITY } from "../../events/services/events.service";
 
 export class UsersController {
   private usersService: UsersService;
@@ -65,6 +66,75 @@ export class UsersController {
       return res.json({ user: updatedUser });
     } catch (error) {
       console.error("UsersController.updateUsername error:", error);
+      return res.status(500).json({ error: "Internal Server Error" });
+    }
+  };
+
+  // PUT /api/users/profile
+  updateProfile = async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const { firstName, lastName, timezone, locale } = req.body;
+
+      const updatedUser = await this.usersService.updateUser(userId, {
+        firstName: firstName !== undefined ? firstName : undefined,
+        lastName: lastName !== undefined ? lastName : undefined,
+        timezone: timezone !== undefined ? timezone : undefined,
+        locale: locale !== undefined ? locale : undefined,
+      });
+
+      return res.json({ user: updatedUser });
+    } catch (error) {
+      console.error("UsersController.updateProfile error:", error);
+      return res.status(500).json({ error: "Internal Server Error" });
+    }
+  };
+
+  // GET /api/users/availability
+  getAvailability = async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const user = await this.usersService.getUserById(userId);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const availability = user.availability || DEFAULT_AVAILABILITY;
+      return res.json({ availability });
+    } catch (error) {
+      console.error("UsersController.getAvailability error:", error);
+      return res.status(500).json({ error: "Internal Server Error" });
+    }
+  };
+
+  // PUT /api/users/availability
+  updateAvailability = async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const { availability } = req.body;
+      if (!availability || !Array.isArray(availability)) {
+        return res.status(400).json({ error: "Availability array is required" });
+      }
+
+      const updatedUser = await this.usersService.updateUser(userId, {
+        availability,
+      });
+
+      return res.json({ user: updatedUser });
+    } catch (error) {
+      console.error("UsersController.updateAvailability error:", error);
       return res.status(500).json({ error: "Internal Server Error" });
     }
   };
