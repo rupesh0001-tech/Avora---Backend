@@ -12,6 +12,15 @@ export async function createBooking(req: Request, res: Response) {
       return res.status(400).json({ error: "Missing required booking details." });
     }
 
+    const bookingTime = new Date(startTime).getTime();
+    if (isNaN(bookingTime)) {
+      return res.status(400).json({ error: "Invalid booking start time format." });
+    }
+
+    if (bookingTime < Date.now()) {
+      return res.status(400).json({ error: "Cannot book a time slot in the past." });
+    }
+
     const { booking, razorpayOrder } = await bookingsService.createBooking({
       eventTypeId,
       startTime,
@@ -40,7 +49,14 @@ export async function createBooking(req: Request, res: Response) {
     return res.status(201).json({ success: true, booking, razorpayOrder });
   } catch (err: any) {
     console.error("Error creating booking:", err);
-    return res.status(500).json({ error: err.message || "Failed to create booking." });
+    const isValidationError =
+      err.message?.includes("not available on") ||
+      err.message?.includes("outside available hours") ||
+      err.message?.includes("not found or inactive") ||
+      err.message?.includes("in the past");
+    return res
+      .status(isValidationError ? 400 : 500)
+      .json({ error: err.message || "Failed to create booking." });
   }
 }
 
@@ -73,5 +89,27 @@ export async function getPublicEventDetails(req: Request, res: Response) {
   } catch (err: any) {
     console.error("Error fetching public event details:", err);
     return res.status(404).json({ error: err.message || "Failed to load event details." });
+  }
+}
+
+export async function verifyPayment(req: Request, res: Response) {
+  try {
+    const { bookingId, razorpayOrderId, razorpayPaymentId, razorpaySignature } = req.body;
+
+    if (!bookingId || !razorpayOrderId || !razorpayPaymentId || !razorpaySignature) {
+      return res.status(400).json({ error: "Missing required payment verification details." });
+    }
+
+    const booking = await bookingsService.verifyPayment({
+      bookingId,
+      razorpayOrderId,
+      razorpayPaymentId,
+      razorpaySignature,
+    });
+
+    return res.status(200).json({ success: true, booking });
+  } catch (err: any) {
+    console.error("Payment verification error:", err);
+    return res.status(400).json({ error: err.message || "Payment verification failed." });
   }
 }

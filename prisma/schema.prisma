@@ -44,6 +44,26 @@ model EventType {
   bookingFields   Json?    // Custom booking form fields toggle & config
   appearance      String   @default("classic") // Appearance layout selection
   bookings        Booking[]
+  
+  // Payments & Seats configuration
+  paymentEnabled  Boolean  @default(false)
+  currency        String   @default("INR")
+  seatsEnabled    Boolean  @default(false)
+  seatsMax        Int      @default(1)
+  seatsShareInfo  Boolean  @default(false)
+  seatsShowCount  Boolean  @default(false)
+
+  // Advanced Availability Rules
+  beforeBuffer    Int      @default(0) // in minutes
+  afterBuffer     Int      @default(0) // in minutes
+  minimumNotice   Int      @default(120) // in minutes
+  slotInterval    Int?     // custom slot intervals in minutes, null means use duration
+  limitBookingFrequency    Json? // limit count per time period (day/week/month)
+  limitTotalBookingDuration Json? // limit minutes per time period (day/week/month)
+  limitFutureBookings      Json? // limit days ahead
+  limitUpcomingBookings    Json? // limit active upcoming bookings per booker
+  showOnlyFirstAvailableSlot Boolean @default(false)
+
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
