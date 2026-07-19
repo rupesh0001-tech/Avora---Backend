@@ -79,3 +79,15 @@ model HostAnalytics {
 
   @@map("host_analytics")
 }
+
+model GoogleAccount {
+  id           String   @id @default(cuid())
+  clerkUserId  String   @unique
+  accessToken  String
+  refreshToken String
+  expiryDate   BigInt
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("google_accounts")
+}
