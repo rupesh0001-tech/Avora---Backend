@@ -105,17 +105,29 @@ export class BookingsService {
           periodStart.setUTCHours(0, 0, 0, 0);
         }
 
-        const count = await prisma.booking.count({
+        // Fetch all bookings in the period
+        const periodBookings = await prisma.booking.findMany({
           where: {
             eventTypeId: eventType.id,
             startTime: { gte: periodStart },
             status: { in: ["confirmed", "pending_payment"] },
           },
+          select: {
+            startTime: true,
+          },
         });
 
-        if (count >= config.maxBookings) {
+        // Determine unique times that have been booked
+        const uniqueTimes = new Set(periodBookings.map((b) => b.startTime.getTime()));
+        const uniqueSlotsCount = uniqueTimes.size;
+
+        // Check if the current slot is a new slot (not already booked)
+        const isNewSlot = !uniqueTimes.has(start.getTime());
+        const projectedSlotsCount = uniqueSlotsCount + (isNewSlot ? 1 : 0);
+
+        if (projectedSlotsCount > config.maxBookings) {
           throw new Error(
-            `Booking limit exceeded for this ${config.period}. Only ${config.maxBookings} bookings are allowed.`
+            `Booking limit exceeded for this ${config.period}. Only ${config.maxBookings} slots/meetings are allowed.`
           );
         }
       }
@@ -163,9 +175,10 @@ export class BookingsService {
     }> | null;
 
     if (availability && availability.length > 0) {
+      const hostTimezone = hostUser.timezone || "UTC";
       const weekdayName = start.toLocaleDateString("en-US", {
         weekday: "long",
-        timeZone: "UTC",
+        timeZone: hostTimezone,
       });
 
       const dayConfig = availability.find((a) => a.day === weekdayName);
@@ -176,7 +189,16 @@ export class BookingsService {
         );
       }
 
-      const slotStartMinutes = start.getUTCHours() * 60 + start.getUTCMinutes();
+      const parts = new Intl.DateTimeFormat("en-US", {
+        timeZone: hostTimezone,
+        hour: "numeric",
+        minute: "numeric",
+        hour12: false,
+      }).formatToParts(start);
+      const pHour = parts.find((p) => p.type === "hour")?.value ?? "0";
+      const pMinute = parts.find((p) => p.type === "minute")?.value ?? "0";
+
+      const slotStartMinutes = (parseInt(pHour) % 24) * 60 + parseInt(pMinute);
       const slotEndMinutes = slotStartMinutes + duration;
 
       const fitsInASlot = dayConfig.slots?.some((slot) => {
@@ -361,13 +383,14 @@ export class BookingsService {
     let bookedSlots: Array<{ startTime: Date; endTime: Date }> = [];
 
     if (dateString) {
-      const startOfDay = new Date(`${dateString}T00:00:00Z`);
-      const endOfDay = new Date(`${dateString}T23:59:59Z`);
+      const baseDate = new Date(`${dateString}T00:00:00Z`);
+      const startWindow = new Date(baseDate.getTime() - 24 * 60 * 60 * 1000);
+      const endWindow = new Date(baseDate.getTime() + 2 * 24 * 60 * 60 * 1000);
 
       bookedSlots = await this.bookingsRepository.getBookingsByEventAndRange(
         eventType.id,
-        startOfDay,
-        endOfDay
+        startWindow,
+        endWindow
       );
     }
 
@@ -377,6 +400,7 @@ export class BookingsService {
         lastName: hostUser.lastName,
         imageUrl: hostUser.imageUrl,
         username: hostUser.username,
+        timezone: hostUser.timezone,
       },
       eventType,
       bookedSlots,
