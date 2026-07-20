@@ -123,13 +123,14 @@ export class UsersController {
         return res.status(401).json({ error: "Unauthorized" });
       }
 
-      const { availability } = req.body;
+      const { availability, timezone } = req.body;
       if (!availability || !Array.isArray(availability)) {
         return res.status(400).json({ error: "Availability array is required" });
       }
 
       const updatedUser = await this.usersService.updateUser(userId, {
         availability,
+        timezone,
       });
 
       return res.json({ user: updatedUser });

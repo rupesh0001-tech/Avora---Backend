@@ -36,11 +36,14 @@ export class BookingsService {
   }) {
     const eventType = await prisma.eventType.findUnique({
       where: { id: data.eventTypeId },
+      include: { user: true },
     });
 
     if (!eventType || !eventType.isActive) {
       throw new Error("Event type not found or inactive.");
     }
+
+    const hostUser = eventType.user;
 
     const start = new Date(data.startTime);
     const duration = eventType.duration;
@@ -405,5 +408,264 @@ export class BookingsService {
       eventType,
       bookedSlots,
     };
+  }
+
+  async getPublicBookingDetails(bookingId: string) {
+    const booking = await prisma.booking.findUnique({
+      where: { id: bookingId },
+      include: {
+        eventType: {
+          include: {
+            user: {
+              select: {
+                firstName: true,
+                lastName: true,
+                username: true,
+                timezone: true,
+              }
+            }
+          }
+        }
+      }
+    });
+    if (!booking) {
+      throw new Error("Booking not found");
+    }
+    return booking;
+  }
+
+  async cancelBooking(bookingId: string, reason?: string) {
+    const booking = await prisma.booking.findUnique({
+      where: { id: bookingId },
+      include: { eventType: true }
+    });
+
+    if (!booking) {
+      throw new Error("Booking not found");
+    }
+
+    if (booking.status === "cancelled") {
+      throw new Error("Booking is already cancelled.");
+    }
+
+    const eventType = booking.eventType;
+
+    // Check if cancel is enabled
+    if (eventType.cancelEnabled === false) {
+      throw new Error("Cancellation is not allowed for this meeting type.");
+    }
+
+    // Check notice period
+    const cancelNoticeMinutes = eventType.cancelNotice ?? 60;
+    const startTimeMs = new Date(booking.startTime).getTime();
+    if (startTimeMs - cancelNoticeMinutes * 60 * 1000 < Date.now()) {
+      const noticeText = cancelNoticeMinutes % 1440 === 0
+        ? `${cancelNoticeMinutes / 1440} day(s)`
+        : cancelNoticeMinutes % 60 === 0
+          ? `${cancelNoticeMinutes / 60} hour(s)`
+          : `${cancelNoticeMinutes} minute(s)`;
+      throw new Error(`Cannot cancel this booking. Minimum notice required is ${noticeText}.`);
+    }
+
+    const fields = (booking.bookingFieldsData as Record<string, any>) || {};
+    if (reason) {
+      fields.cancellationReason = reason;
+    }
+
+    const updatedBooking = await prisma.booking.update({
+      where: { id: bookingId },
+      data: {
+        status: "cancelled",
+        bookingFieldsData: fields
+      }
+    });
+
+    // Queue cancellation email
+    await emailQueue.add("booking-confirmation", {
+      bookingId: booking.id,
+      type: "booking-cancellation",
+    });
+
+    // Queue calendar event deletion
+    await calendarQueue.add("delete-event", {
+      bookingId: booking.id,
+      action: "delete-event",
+    });
+
+    return updatedBooking;
+  }
+
+  async rescheduleBooking(bookingId: string, newStartTime: string) {
+    const booking = await prisma.booking.findUnique({
+      where: { id: bookingId },
+      include: { eventType: { include: { user: true } } }
+    });
+
+    if (!booking) {
+      throw new Error("Booking not found");
+    }
+
+    if (booking.status === "cancelled") {
+      throw new Error("Cannot reschedule a cancelled booking.");
+    }
+
+    const eventType = booking.eventType;
+    const hostUser = eventType.user;
+
+    // Check if reschedule is enabled
+    if (eventType.rescheduleEnabled === false) {
+      throw new Error("Rescheduling is not allowed for this meeting type.");
+    }
+
+    // Check notice period for the original slot
+    const rescheduleNoticeMinutes = eventType.rescheduleNotice ?? 60;
+    const originalStartTimeMs = new Date(booking.startTime).getTime();
+    if (originalStartTimeMs - rescheduleNoticeMinutes * 60 * 1000 < Date.now()) {
+      const noticeText = rescheduleNoticeMinutes % 1440 === 0
+        ? `${rescheduleNoticeMinutes / 1440} day(s)`
+        : rescheduleNoticeMinutes % 60 === 0
+          ? `${rescheduleNoticeMinutes / 60} hour(s)`
+          : `${rescheduleNoticeMinutes} minute(s)`;
+      throw new Error(`Cannot reschedule this booking. Minimum notice required is ${noticeText}.`);
+    }
+
+    // Now validate the new slot availability
+    const start = new Date(newStartTime);
+    const duration = eventType.duration;
+    const end = new Date(start.getTime() + duration * 60 * 1000);
+    const now = Date.now();
+
+    // 1. Minimum Notice Validation for the new slot
+    const minNoticeMinutes = eventType.minimumNotice ?? 120;
+    if (start.getTime() < now + minNoticeMinutes * 60 * 1000) {
+      throw new Error(
+        `Cannot book on short notice. Minimum notice required is ${minNoticeMinutes} minutes.`
+      );
+    }
+
+    // 2. Future Bookings Limit Validation
+    if (eventType.limitFutureBookings) {
+      const config = eventType.limitFutureBookings as any;
+      if (config.enabled && config.days) {
+        const maxFutureDate = now + config.days * 24 * 60 * 60 * 1000;
+        if (start.getTime() > maxFutureDate) {
+          throw new Error(
+            `Cannot schedule events more than ${config.days} days in the future.`
+          );
+        }
+      }
+    }
+
+    // 3. Availability Schedule Validation
+    const availability = eventType.availability as Array<{
+      day: string;
+      enabled: boolean;
+      slots: Array<{ startTime: string; endTime: string }>;
+    }> | null;
+
+    if (availability && availability.length > 0) {
+      const hostTimezone = hostUser.timezone || "UTC";
+      const weekdayName = start.toLocaleDateString("en-US", {
+        weekday: "long",
+        timeZone: hostTimezone,
+      });
+
+      const dayConfig = availability.find((a) => a.day === weekdayName);
+
+      if (!dayConfig || !dayConfig.enabled) {
+        throw new Error(
+          `Bookings are not available on ${weekdayName}. Please choose an available day.`
+        );
+      }
+
+      const parts = new Intl.DateTimeFormat("en-US", {
+        timeZone: hostTimezone,
+        hour: "numeric",
+        minute: "numeric",
+        hour12: false,
+      }).formatToParts(start);
+      const pHour = parts.find((p) => p.type === "hour")?.value ?? "0";
+      const pMinute = parts.find((p) => p.type === "minute")?.value ?? "0";
+
+      const slotStartMinutes = (parseInt(pHour) % 24) * 60 + parseInt(pMinute);
+      const slotEndMinutes = slotStartMinutes + duration;
+
+      const fitsInASlot = dayConfig.slots?.some((slot) => {
+        const windowStart = this.timeToMinutes(slot.startTime);
+        const windowEnd = this.timeToMinutes(slot.endTime);
+        return slotStartMinutes >= windowStart && slotEndMinutes <= windowEnd;
+      });
+
+      if (!fitsInASlot) {
+        throw new Error(
+          `The selected time is outside available hours for ${weekdayName}.`
+        );
+      }
+    }
+
+    // 4. Overlap, Seats, and Buffers Validation (excluding THIS booking)
+    const beforeBuffer = eventType.beforeBuffer ?? 0;
+    const afterBuffer = eventType.afterBuffer ?? 0;
+
+    const startWindow = new Date(start.getTime() - 24 * 60 * 60 * 1000);
+    const endWindow = new Date(end.getTime() + 24 * 60 * 60 * 1000);
+
+    const conflictingBookings = await prisma.booking.findMany({
+      where: {
+        eventTypeId: eventType.id,
+        status: { in: ["confirmed", "pending_payment"] },
+        startTime: { gte: startWindow, lte: endWindow },
+        id: { not: bookingId }, // exclude self
+      },
+    });
+
+    if (eventType.seatsEnabled) {
+      const exactTimeBookingsCount = conflictingBookings.filter(
+        (b) => b.startTime.getTime() === start.getTime()
+      ).length;
+
+      if (exactTimeBookingsCount >= (eventType.seatsMax ?? 1)) {
+        throw new Error("This slot is fully booked.");
+      }
+    } else {
+      const hasOverlap = conflictingBookings.some((b) => {
+        const bStart = b.startTime.getTime();
+        const bEnd = b.endTime.getTime();
+        const combinedAfterBuffer = afterBuffer * 60 * 1000;
+        const combinedBeforeBuffer = beforeBuffer * 60 * 1000;
+
+        return (
+          start.getTime() < bEnd + combinedAfterBuffer &&
+          end.getTime() > bStart - combinedBeforeBuffer
+        );
+      });
+
+      if (hasOverlap) {
+        throw new Error("This slot conflicts with an existing booking or buffer time.");
+      }
+    }
+
+    // All validation passed! Perform reschedule
+    const updatedBooking = await prisma.booking.update({
+      where: { id: bookingId },
+      data: {
+        startTime: start,
+        endTime: end,
+      }
+    });
+
+    // Queue reschedule confirmation email
+    await emailQueue.add("booking-confirmation", {
+      bookingId: booking.id,
+      type: "booking-confirmation",
+    });
+
+    // Queue Google Calendar update
+    await calendarQueue.add("update-event", {
+      bookingId: booking.id,
+      action: "update-event",
+    });
+
+    return updatedBooking;
   }
 }

@@ -53,6 +53,13 @@ model EventType {
   seatsShareInfo  Boolean  @default(false)
   seatsShowCount  Boolean  @default(false)
 
+  // Reschedule & Cancel configuration
+  rescheduleEnabled  Boolean @default(true)
+  cancelEnabled      Boolean @default(true)
+  rescheduleNotice   Int     @default(60) // notice period in minutes
+  cancelNotice       Int     @default(60) // notice period in minutes
+  cancellationPolicy String  @default("")
+
   // Advanced Availability Rules
   beforeBuffer    Int      @default(0) // in minutes
   afterBuffer     Int      @default(0) // in minutes

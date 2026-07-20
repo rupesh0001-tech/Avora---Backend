@@ -113,3 +113,38 @@ export async function verifyPayment(req: Request, res: Response) {
     return res.status(400).json({ error: err.message || "Payment verification failed." });
   }
 }
+
+export async function getPublicBookingDetails(req: Request, res: Response) {
+  try {
+    const { bookingId } = req.params;
+    const booking = await bookingsService.getPublicBookingDetails(bookingId as string);
+    return res.status(200).json({ success: true, booking });
+  } catch (err: any) {
+    console.error("Error fetching public booking details:", err);
+    return res.status(404).json({ error: err.message || "Booking not found." });
+  }
+}
+
+export async function cancelBooking(req: Request, res: Response) {
+  try {
+    const { bookingId } = req.params;
+    const { reason } = req.body;
+    const booking = await bookingsService.cancelBooking(bookingId as string, reason);
+    return res.status(200).json({ success: true, booking });
+  } catch (err: any) {
+    console.error("Error cancelling booking:", err);
+    return res.status(400).json({ error: err.message || "Failed to cancel booking." });
+  }
+}
+
+export async function rescheduleBooking(req: Request, res: Response) {
+  try {
+    const { bookingId } = req.params;
+    const { newStartTime } = req.body;
+    const booking = await bookingsService.rescheduleBooking(bookingId as string, newStartTime);
+    return res.status(200).json({ success: true, booking });
+  } catch (err: any) {
+    console.error("Error rescheduling booking:", err);
+    return res.status(400).json({ error: err.message || "Failed to reschedule booking." });
+  }
+}

@@ -16,4 +16,9 @@ router.get("/", requireAuth, controller.getHostBookings);
 // Public route to retrieve event details and availability ranges
 router.get("/public/:username/:slug", controller.getPublicEventDetails);
 
+// Public routes for rescheduling & cancellation
+router.get("/:bookingId/public", controller.getPublicBookingDetails);
+router.post("/:bookingId/cancel", controller.cancelBooking);
+router.post("/:bookingId/reschedule", controller.rescheduleBooking);
+
 export default router;
