@@ -1,8 +1,34 @@
 import type { Request, Response } from "express";
 import { BookingsService } from "../services/bookings.service";
 import { emailQueue, calendarQueue, analyticsQueue } from "../../../queues/booking-queues";
+import { generateBookingToken, verifyBookingToken } from "../../../common/utils/security";
+import { prisma } from "../../../config/database";
 
 const bookingsService = new BookingsService();
+
+// Authorization helper to check if requester is host OR has valid cancellation token
+async function isAuthorizedForBooking(req: Request, bookingId: string): Promise<boolean> {
+  const token = (req.query.token as string) || (req.body.token as string);
+  
+  // 1. Try token verification
+  if (token && verifyBookingToken(bookingId, token)) {
+    return true;
+  }
+  
+  // 2. Try host authentication verification
+  const userId = (req as any).user?.id || (req as any).auth?.userId;
+  if (userId) {
+    const booking = await prisma.booking.findUnique({
+      where: { id: bookingId },
+      include: { eventType: true }
+    });
+    if (booking && booking.eventType.userId === userId) {
+      return true;
+    }
+  }
+  
+  return false;
+}
 
 export async function createBooking(req: Request, res: Response) {
   try {
@@ -30,6 +56,8 @@ export async function createBooking(req: Request, res: Response) {
       bookingFieldsData,
     });
 
+    const token = generateBookingToken(booking.id);
+
     if (booking.status === "confirmed") {
       await emailQueue.add("booking-confirmation", {
         bookingId: booking.id,
@@ -46,7 +74,7 @@ export async function createBooking(req: Request, res: Response) {
       });
     }
 
-    return res.status(201).json({ success: true, booking, razorpayOrder });
+    return res.status(201).json({ success: true, booking, razorpayOrder, token });
   } catch (err: any) {
     console.error("Error creating booking:", err);
     const isValidationError =
@@ -117,6 +145,10 @@ export async function verifyPayment(req: Request, res: Response) {
 export async function getPublicBookingDetails(req: Request, res: Response) {
   try {
     const { bookingId } = req.params;
+    if (!(await isAuthorizedForBooking(req, bookingId))) {
+      return res.status(403).json({ error: "Forbidden: Invalid or missing authorization token." });
+    }
+
     const booking = await bookingsService.getPublicBookingDetails(bookingId as string);
     return res.status(200).json({ success: true, booking });
   } catch (err: any) {
@@ -128,6 +160,10 @@ export async function getPublicBookingDetails(req: Request, res: Response) {
 export async function cancelBooking(req: Request, res: Response) {
   try {
     const { bookingId } = req.params;
+    if (!(await isAuthorizedForBooking(req, bookingId))) {
+      return res.status(403).json({ error: "Forbidden: Invalid or missing authorization token." });
+    }
+
     const { reason } = req.body;
     const booking = await bookingsService.cancelBooking(bookingId as string, reason);
     return res.status(200).json({ success: true, booking });
@@ -140,6 +176,10 @@ export async function cancelBooking(req: Request, res: Response) {
 export async function rescheduleBooking(req: Request, res: Response) {
   try {
     const { bookingId } = req.params;
+    if (!(await isAuthorizedForBooking(req, bookingId))) {
+      return res.status(403).json({ error: "Forbidden: Invalid or missing authorization token." });
+    }
+
     const { newStartTime } = req.body;
     const booking = await bookingsService.rescheduleBooking(bookingId as string, newStartTime);
     return res.status(200).json({ success: true, booking });

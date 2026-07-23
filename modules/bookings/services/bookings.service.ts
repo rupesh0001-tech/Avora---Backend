@@ -5,9 +5,16 @@ import { BookingsRepository } from "../repositories/bookings.repository";
 import { prisma } from "../../../config/database";
 import { emailQueue, calendarQueue, analyticsQueue } from "../../../queues/booking-queues";
 
+if (!env.RAZORPAY_KEY_ID || !env.RAZORPAY_KEY_SECRET) {
+  throw new Error(
+    "[bookings.service] RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET must be set in environment variables. " +
+    "Refusing to start with missing or empty payment credentials."
+  );
+}
+
 const razorpay = new Razorpay({
-  key_id: env.RAZORPAY_KEY_ID || "rzp_test_12345",
-  key_secret: env.RAZORPAY_KEY_SECRET || "razorpay_secret_12345",
+  key_id: env.RAZORPAY_KEY_ID,
+  key_secret: env.RAZORPAY_KEY_SECRET,
 });
 
 export class BookingsService {
@@ -293,7 +300,7 @@ export class BookingsService {
           id: order.id,
           amount: order.amount,
           currency: order.currency,
-          key: env.RAZORPAY_KEY_ID || "rzp_test_12345",
+          key: env.RAZORPAY_KEY_ID,
         };
       } catch (err) {
         console.error("Razorpay order creation failed, proceeding without order details:", err);
@@ -323,7 +330,7 @@ export class BookingsService {
     }
 
     // Create HMAC verification signature
-    const hmac = crypto.createHmac("sha256", env.RAZORPAY_KEY_SECRET || "razorpay_secret_12345");
+    const hmac = crypto.createHmac("sha256", env.RAZORPAY_KEY_SECRET);
     hmac.update(`${data.razorpayOrderId}|${data.razorpayPaymentId}`);
     const generatedSignature = hmac.digest("hex");
 

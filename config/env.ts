@@ -25,3 +25,12 @@ if (!env.CLERK_SECRET_KEY) {
 if (!env.REDIS_URL) {
   console.warn("⚠️ Warning: REDIS_URL is not set in environment variables");
 }
+if (!env.RAZORPAY_KEY_ID) {
+  console.warn("⚠️ Warning: RAZORPAY_KEY_ID is not set — payment features will fail at runtime.");
+}
+if (!env.RAZORPAY_KEY_SECRET) {
+  console.warn("⚠️ Warning: RAZORPAY_KEY_SECRET is not set — payment features will fail at runtime.");
+}
+if (!env.RAZORPAY_WEBHOOK_SECRET) {
+  console.warn("⚠️ Warning: RAZORPAY_WEBHOOK_SECRET is not set — webhook signature verification will be skipped.");
+}
