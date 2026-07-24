@@ -21,10 +21,12 @@ model User {
   timezone      String         @default("UTC")
   locale        String         @default("en")
   availability  Json?          // General working hours/availability schedule
+  overrides     Json?          // Date-specific availability overrides/exceptions
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
   eventTypes    EventType[]
   hostAnalytics HostAnalytics?
+  auditLogs     AuditLog[]
 
   @@map("users")
 }
@@ -41,6 +43,7 @@ model EventType {
   locationType    String   @default("Video")
   locationDetails String   @default("Google Meet")
   availability    Json?    // Week days & time slots configuration
+  overrides       Json?    // Date-specific availability overrides/exceptions
   bookingFields   Json?    // Custom booking form fields toggle & config
   appearance      String   @default("classic") // Appearance layout selection
   bookings        Booking[]
@@ -84,13 +87,17 @@ model Booking {
   eventType         EventType @relation(fields: [eventTypeId], references: [id], onDelete: Cascade)
   startTime         DateTime
   endTime           DateTime
-  status            String    @default("confirmed") // e.g. confirmed, cancelled
+  status            String    @default("confirmed") // e.g. confirmed, cancelled, pending_payment
   attendeeName      String
   attendeeEmail     String
   attendeePhone     String?
   bookingFieldsData Json?     // JSON mapping custom answers { "notes": "...", "guests": [...] }
+  cancellationToken String?   @default(uuid())
+  rescheduleToken   String?   @default(uuid())
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
+
+  auditLogs         AuditLog[]
 
   @@map("bookings")
 }
@@ -119,3 +126,17 @@ model GoogleAccount {
 
   @@map("google_accounts")
 }
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  bookingId String?
+  booking   Booking? @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+  action    String
+  details   Json?
+  createdAt DateTime @default(now())
+
+  @@map("audit_logs")
+}
+
