@@ -6,16 +6,15 @@ import { prisma } from "../../../config/database";
 import { emailQueue, calendarQueue, analyticsQueue } from "../../../queues/booking-queues";
 
 if (!env.RAZORPAY_KEY_ID || !env.RAZORPAY_KEY_SECRET) {
-  throw new Error(
-    "[bookings.service] RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET must be set in environment variables. " +
-    "Refusing to start with missing or empty payment credentials."
-  );
+  console.warn("⚠️ [bookings.service] RAZORPAY_KEY_ID or RAZORPAY_KEY_SECRET is missing. Paid bookings will be disabled until credentials are provided.");
 }
 
-const razorpay = new Razorpay({
-  key_id: env.RAZORPAY_KEY_ID,
-  key_secret: env.RAZORPAY_KEY_SECRET,
-});
+const razorpay = (env.RAZORPAY_KEY_ID && env.RAZORPAY_KEY_SECRET)
+  ? new Razorpay({
+      key_id: env.RAZORPAY_KEY_ID,
+      key_secret: env.RAZORPAY_KEY_SECRET,
+    })
+  : null;
 
 export class BookingsService {
   private bookingsRepository: BookingsRepository;
@@ -286,7 +285,7 @@ export class BookingsService {
     });
 
     let razorpayOrder = null;
-    if (isPaid) {
+    if (isPaid && razorpay) {
       try {
         const order = await razorpay.orders.create({
           amount: Math.round(eventType.price * 100), // in paise
