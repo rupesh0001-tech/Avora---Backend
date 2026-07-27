@@ -37,18 +37,16 @@ app.get("/api/health", (req, res) => {
   res.json({ status: "ok", message: "Cally Backend API is running" });
 });
 
-// Initialize Clerk middleware to populate auth context safely
-app.use((req, res, next) => {
-  if (req.path === "/health" || req.path === "/api/health") {
-    return next();
-  }
+// Initialize Clerk middleware safely if CLERK_SECRET_KEY is set
+if (process.env.CLERK_SECRET_KEY) {
   try {
-    return clerkMiddleware()(req, res, next);
+    app.use(clerkMiddleware());
   } catch (err) {
-    console.warn("Clerk middleware bypass warning:", err);
-    return next();
+    console.warn("⚠️ Warning: Clerk middleware initialization skipped:", err);
   }
-});
+} else {
+  console.warn("⚠️ Warning: CLERK_SECRET_KEY is not set. Clerk auth middleware skipped.");
+}
 
 // Setup all routes
 app.use("/api", router);
