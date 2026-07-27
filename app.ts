@@ -6,8 +6,20 @@ import router from "./routes";
 const app = express();
 
 // Standard middleware
+const allowedOrigins = [
+  "http://localhost:3000",
+  "https://cally.rupeshhh.in",
+  process.env.FRONTEND_URL,
+].filter(Boolean);
+
 app.use(cors({
-  origin: "http://localhost:3000", // Frontend port
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin) || process.env.NODE_ENV !== "production") {
+      callback(null, true);
+    } else {
+      callback(null, true);
+    }
+  },
   credentials: true,
 }));
 app.use(express.json({

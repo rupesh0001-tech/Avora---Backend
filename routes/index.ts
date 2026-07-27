@@ -7,6 +7,11 @@ import webhookRoutes from "./webhooks.routes";
 
 const router = Router();
 
+// Health check endpoint
+router.get("/health", (req, res) => {
+  res.json({ status: "ok", message: "Cally Backend API is running" });
+});
+
 // Register module subrouters
 router.use("/auth", authRoutes);
 router.use("/users", userRoutes);
