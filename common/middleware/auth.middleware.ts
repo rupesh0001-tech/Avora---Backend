@@ -20,7 +20,13 @@ export async function requireAuth(
   next: NextFunction
 ) {
   try {
-    const auth = getAuth(req);
+    let auth: any = null;
+    try {
+      auth = getAuth(req);
+    } catch (authErr) {
+      console.warn("Clerk getAuth error:", authErr);
+      return res.status(401).json({ error: "Unauthorized: Invalid authentication token" });
+    }
 
     if (!auth || !auth.userId) {
       return res.status(401).json({ error: "Unauthorized: Missing or invalid authentication session" });
@@ -33,21 +39,22 @@ export async function requireAuth(
     let lastName = claims.last_name || claims.family_name || null;
     let imageUrl = claims.image_url || claims.picture || null;
 
-    // 2. If essential email claim is missing, fetch from Clerk API
+    // 2. If email claim is missing, attempt to fetch from Clerk API
     if (!email) {
       try {
         const clerkUser = await clerkClient.users.getUser(auth.userId);
-        email = clerkUser.emailAddresses[0]?.emailAddress;
-        firstName = firstName ?? clerkUser.firstName;
-        lastName = lastName ?? clerkUser.lastName;
-        imageUrl = imageUrl ?? clerkUser.imageUrl;
+        email = clerkUser?.emailAddresses?.[0]?.emailAddress;
+        firstName = firstName ?? clerkUser?.firstName;
+        lastName = lastName ?? clerkUser?.lastName;
+        imageUrl = imageUrl ?? clerkUser?.imageUrl;
       } catch (err) {
         console.warn("Could not fetch user details from Clerk API:", err);
       }
     }
 
+    // Fallback email if Clerk secret key is omitted
     if (!email) {
-      return res.status(400).json({ error: "User profile contains no primary email address" });
+      email = `${auth.userId}@cally.user`;
     }
 
     // 3. Atomic upsert to prevent race conditions & keep profile updated
