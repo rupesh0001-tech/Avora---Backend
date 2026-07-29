@@ -26,41 +26,51 @@ export async function requireAuth(
       return res.status(401).json({ error: "Unauthorized: Missing or invalid authentication session" });
     }
 
-    // Check if user exists in the local database
-    let dbUser = await prisma.user.findUnique({
-      where: { id: auth.userId },
-    });
+    // 1. Extract email and profile fields from JWT claims first (zero latency)
+    const claims = (auth.sessionClaims as any) || {};
+    let email = claims.email || claims.primary_email || claims.email_address;
+    let firstName = claims.first_name || claims.given_name || null;
+    let lastName = claims.last_name || claims.family_name || null;
+    let imageUrl = claims.image_url || claims.picture || null;
 
-    // Lazy sync: If user doesn't exist in local DB, fetch from Clerk and create them
-    if (!dbUser) {
-      console.log(`Lazy sync: User ${auth.userId} not found in DB. Fetching from Clerk...`);
+    // 2. If essential email claim is missing, fetch from Clerk API
+    if (!email) {
       try {
         const clerkUser = await clerkClient.users.getUser(auth.userId);
-        const email = clerkUser.emailAddresses[0]?.emailAddress;
-
-        if (!email) {
-          return res.status(400).json({ error: "User profile contains no primary email address" });
-        }
-
-        dbUser = await prisma.user.create({
-          data: {
-            id: clerkUser.id,
-            email: email,
-            firstName: clerkUser.firstName,
-            lastName: clerkUser.lastName,
-            imageUrl: clerkUser.imageUrl,
-            timezone: "UTC", // Default timezone
-            locale: "en", // Default locale
-          },
-        });
-        console.log(`Lazy sync: Successfully created user ${dbUser.email} in DB.`);
-      } catch (clerkError) {
-        console.error("Error fetching user details from Clerk API during lazy sync:", clerkError);
-        return res.status(500).json({ error: "Failed to synchronize user session with database" });
+        email = clerkUser.emailAddresses[0]?.emailAddress;
+        firstName = firstName ?? clerkUser.firstName;
+        lastName = lastName ?? clerkUser.lastName;
+        imageUrl = imageUrl ?? clerkUser.imageUrl;
+      } catch (err) {
+        console.warn("Could not fetch user details from Clerk API:", err);
       }
     }
 
-    // Attach local user object to request
+    if (!email) {
+      return res.status(400).json({ error: "User profile contains no primary email address" });
+    }
+
+    // 3. Atomic upsert to prevent race conditions & keep profile updated
+    const dbUser = await prisma.user.upsert({
+      where: { id: auth.userId },
+      create: {
+        id: auth.userId,
+        email: email,
+        firstName: firstName,
+        lastName: lastName,
+        imageUrl: imageUrl,
+        timezone: "UTC",
+        locale: "en",
+      },
+      update: {
+        email: email,
+        ...(firstName ? { firstName } : {}),
+        ...(lastName ? { lastName } : {}),
+        ...(imageUrl ? { imageUrl } : {}),
+      },
+    });
+
+    // 4. Attach authenticated user profile to request
     (req as AuthenticatedRequest).user = dbUser;
     next();
   } catch (error) {
