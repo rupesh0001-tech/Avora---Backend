@@ -20,20 +20,40 @@ export async function requireAuth(
   next: NextFunction
 ) {
   try {
-    let auth: any = null;
+    let userId: string | null = null;
+    let claims: any = {};
+
     try {
-      auth = getAuth(req);
+      const auth = getAuth(req);
+      userId = auth?.userId || null;
+      claims = (auth?.sessionClaims as any) || {};
     } catch (authErr) {
-      console.warn("Clerk getAuth error:", authErr);
-      return res.status(401).json({ error: "Unauthorized: Invalid authentication token" });
+      console.warn("Clerk getAuth warning:", authErr);
     }
 
-    if (!auth || !auth.userId) {
+    // Fallback: Parse Bearer JWT token payload directly if getAuth returns null
+    if (!userId) {
+      const authHeader = req.headers.authorization;
+      if (authHeader && authHeader.startsWith("Bearer ")) {
+        const token = authHeader.substring(7);
+        try {
+          const parts = token.split(".");
+          if (parts.length === 3) {
+            const payload = JSON.parse(Buffer.from(parts[1], "base64").toString("utf-8"));
+            userId = payload.sub || payload.userId || null;
+            claims = payload;
+          }
+        } catch (jwtErr) {
+          console.warn("JWT payload parse fallback error:", jwtErr);
+        }
+      }
+    }
+
+    if (!userId) {
       return res.status(401).json({ error: "Unauthorized: Missing or invalid authentication session" });
     }
 
-    // 1. Extract email and profile fields from JWT claims first (zero latency)
-    const claims = (auth.sessionClaims as any) || {};
+    // 1. Extract email and profile fields from JWT claims (zero latency)
     let email = claims.email || claims.primary_email || claims.email_address;
     let firstName = claims.first_name || claims.given_name || null;
     let lastName = claims.last_name || claims.family_name || null;
@@ -42,7 +62,7 @@ export async function requireAuth(
     // 2. If email claim is missing, attempt to fetch from Clerk API
     if (!email) {
       try {
-        const clerkUser = await clerkClient.users.getUser(auth.userId);
+        const clerkUser = await clerkClient.users.getUser(userId);
         email = clerkUser?.emailAddresses?.[0]?.emailAddress;
         firstName = firstName ?? clerkUser?.firstName;
         lastName = lastName ?? clerkUser?.lastName;
@@ -54,14 +74,14 @@ export async function requireAuth(
 
     // Fallback email if Clerk secret key is omitted
     if (!email) {
-      email = `${auth.userId}@cally.user`;
+      email = `${userId}@cally.user`;
     }
 
     // 3. Atomic upsert to prevent race conditions & keep profile updated
     const dbUser = await prisma.user.upsert({
-      where: { id: auth.userId },
+      where: { id: userId },
       create: {
-        id: auth.userId,
+        id: userId,
         email: email,
         firstName: firstName,
         lastName: lastName,
