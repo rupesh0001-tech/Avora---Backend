@@ -20,10 +20,25 @@ router.get("/google/connect", requireAuth as any, async (req: Request, res: Resp
       return res.status(401).json({ error: "Unauthorized: Missing user session" });
     }
 
-    const url = oauth2Client.generateAuthUrl({
+    const host = req.headers.host || "";
+    const isLocal = host.includes("localhost") || host.includes("127.0.0.1");
+    const redirectUri = isLocal
+      ? "http://localhost:5001/api/auth/google/callback"
+      : (process.env.GOOGLE_REDIRECT_URI || "https://api.cally.rupeshhh.in/api/auth/google/callback");
+
+    const client = new google.auth.OAuth2(
+      env.GOOGLE_CLIENT_ID,
+      env.GOOGLE_CLIENT_SECRET,
+      redirectUri
+    );
+
+    const url = client.generateAuthUrl({
       access_type: "offline",
       prompt: "consent",
-      scope: ["https://www.googleapis.com/auth/calendar"],
+      scope: [
+        "https://www.googleapis.com/auth/calendar",
+        "https://www.googleapis.com/auth/calendar.readonly"
+      ],
       state: userId,
     });
 
@@ -36,18 +51,32 @@ router.get("/google/connect", requireAuth as any, async (req: Request, res: Resp
 
 // GET /api/auth/google/callback - Exchange OAuth authorization code
 router.get("/google/callback", async (req: Request, res: Response) => {
+  const host = req.headers.host || "";
+  const isLocal = host.includes("localhost") || host.includes("127.0.0.1");
+  const frontendUrl = isLocal ? "http://localhost:3000" : (process.env.FRONTEND_URL || "https://cally.rupeshhh.in");
+
   try {
     const code = req.query.code as string;
     const clerkUserId = req.query.state as string;
 
     if (!code || !clerkUserId) {
-      return res.status(400).send("Missing authentication code or verification state.");
+      return res.redirect(`${frontendUrl}/dashboard/calendar?google_connected=error`);
     }
 
-    const { tokens } = await oauth2Client.getToken(code);
+    const redirectUri = isLocal
+      ? "http://localhost:5001/api/auth/google/callback"
+      : (process.env.GOOGLE_REDIRECT_URI || "https://api.cally.rupeshhh.in/api/auth/google/callback");
+
+    const client = new google.auth.OAuth2(
+      env.GOOGLE_CLIENT_ID,
+      env.GOOGLE_CLIENT_SECRET,
+      redirectUri
+    );
+
+    const { tokens } = await client.getToken(code);
 
     if (!tokens.access_token) {
-      return res.status(400).send("Failed to fetch Google OAuth tokens.");
+      return res.redirect(`${frontendUrl}/dashboard/calendar?google_connected=error`);
     }
 
     const existingAccount = await prisma.googleAccount.findUnique({
@@ -71,10 +100,10 @@ router.get("/google/callback", async (req: Request, res: Response) => {
       },
     });
 
-    return res.redirect("http://localhost:3000/dashboard/settings?google_connected=success");
+    return res.redirect(`${frontendUrl}/dashboard/calendar?google_connected=success`);
   } catch (err: any) {
     console.error("Error in Google OAuth callback:", err);
-    return res.redirect("http://localhost:3000/dashboard/settings?google_connected=error");
+    return res.redirect(`${frontendUrl}/dashboard/calendar?google_connected=error`);
   }
 });
 
