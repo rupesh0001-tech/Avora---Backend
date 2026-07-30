@@ -36,8 +36,8 @@ export class UsersRepository {
   }
 
   async findByUsername(username: string) {
-    return prisma.user.findUnique({
-      where: { username },
+    return prisma.user.findFirst({
+      where: { username: { equals: username, mode: "insensitive" } },
     });
   }
 
