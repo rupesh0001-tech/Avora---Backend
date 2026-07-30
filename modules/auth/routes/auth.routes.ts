@@ -1,10 +1,12 @@
 import { Router } from "express";
 import type { Request, Response } from "express";
+import { google } from "googleapis";
 import { AuthController } from "../controllers/auth.controller";
 import { requireAuth } from "../../../common/middleware/auth.middleware";
 import type { AuthenticatedRequest } from "../../../common/middleware/auth.middleware";
 import { oauth2Client } from "../../../config/google";
 import { prisma } from "../../../config/database";
+import { env } from "../../../config/env";
 
 const router = Router();
 const controller = new AuthController();
@@ -45,7 +47,7 @@ router.get("/google/connect", requireAuth as any, async (req: Request, res: Resp
     return res.json({ url });
   } catch (err: any) {
     console.error("Error generating Google Auth URL:", err);
-    return res.status(500).json({ error: "Failed to generate Google auth connection link." });
+    return res.status(500).json({ error: err?.message || "Failed to generate Google auth connection link." });
   }
 });
 
