@@ -368,20 +368,20 @@ export class BookingsService {
 
   // Retrieve public event details and booked time ranges for a specific date override
   async getEventAndBookingsForPublic(username: string, slug: string, dateString?: string) {
-    const hostUser = await prisma.user.findUnique({
-      where: { username },
+    const hostUser = await prisma.user.findFirst({
+      where: {
+        username: { equals: username, mode: "insensitive" },
+      },
     });
 
     if (!hostUser) {
       throw new Error("Host user not found.");
     }
 
-    const eventType = await prisma.eventType.findUnique({
+    const eventType = await prisma.eventType.findFirst({
       where: {
-        userId_slug: {
-          userId: hostUser.id,
-          slug,
-        },
+        userId: hostUser.id,
+        slug: { equals: slug, mode: "insensitive" },
       },
     });
 
