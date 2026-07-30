@@ -14,7 +14,7 @@ export function verifyBookingToken(bookingId: string, token: string): boolean {
     const tokenBuf = Buffer.from(token, "hex");
     if (expectedBuf.length !== tokenBuf.length) return false;
     return crypto.timingSafeEqual(expectedBuf, tokenBuf);
-  } catch {
+  } catch(error){ 
     return false;
   }
 }
