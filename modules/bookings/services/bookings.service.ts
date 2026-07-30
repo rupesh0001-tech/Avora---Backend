@@ -343,19 +343,21 @@ export class BookingsService {
       data: { status: "confirmed" },
     });
 
-    // Queue worker tasks since payment is completed successfully
-    await emailQueue.add("booking-confirmation", {
-      bookingId: booking.id,
-      type: "booking-confirmation",
-    });
-
-    await calendarQueue.add("create-event", {
-      bookingId: booking.id,
-      action: "create-event",
-    });
-
-    await analyticsQueue.add("update-stats", {
-      bookingId: booking.id,
+    // Non-blocking queue dispatch for background processing
+    Promise.all([
+      emailQueue.add("booking-confirmation", {
+        bookingId: booking.id,
+        type: "booking-confirmation",
+      }),
+      calendarQueue.add("create-event", {
+        bookingId: booking.id,
+        action: "create-event",
+      }),
+      analyticsQueue.add("update-stats", {
+        bookingId: booking.id,
+      }),
+    ]).catch((err) => {
+      console.error("Background job queue dispatch error in verifyPayment:", err);
     });
 
     return updatedBooking;
@@ -486,16 +488,18 @@ export class BookingsService {
       }
     });
 
-    // Queue cancellation email
-    await emailQueue.add("booking-confirmation", {
-      bookingId: booking.id,
-      type: "booking-cancellation",
-    });
-
-    // Queue calendar event deletion
-    await calendarQueue.add("delete-event", {
-      bookingId: booking.id,
-      action: "delete-event",
+    // Async non-blocking queue dispatches
+    Promise.all([
+      emailQueue.add("booking-confirmation", {
+        bookingId: booking.id,
+        type: "booking-cancellation",
+      }),
+      calendarQueue.add("delete-event", {
+        bookingId: booking.id,
+        action: "delete-event",
+      }),
+    ]).catch((err) => {
+      console.error("Background job queue dispatch error in cancelBooking:", err);
     });
 
     return updatedBooking;
@@ -660,16 +664,18 @@ export class BookingsService {
       }
     });
 
-    // Queue reschedule confirmation email
-    await emailQueue.add("booking-confirmation", {
-      bookingId: booking.id,
-      type: "booking-confirmation",
-    });
-
-    // Queue Google Calendar update
-    await calendarQueue.add("update-event", {
-      bookingId: booking.id,
-      action: "update-event",
+    // Async non-blocking queue dispatches
+    Promise.all([
+      emailQueue.add("booking-confirmation", {
+        bookingId: booking.id,
+        type: "booking-confirmation",
+      }),
+      calendarQueue.add("update-event", {
+        bookingId: booking.id,
+        action: "update-event",
+      }),
+    ]).catch((err) => {
+      console.error("Background job queue dispatch error in rescheduleBooking:", err);
     });
 
     return updatedBooking;

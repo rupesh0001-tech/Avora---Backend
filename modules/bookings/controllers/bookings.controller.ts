@@ -59,18 +59,21 @@ export async function createBooking(req: Request, res: Response) {
     const token = generateBookingToken(booking.id);
 
     if (booking.status === "confirmed") {
-      await emailQueue.add("booking-confirmation", {
-        bookingId: booking.id,
-        type: "booking-confirmation",
-      });
-
-      await calendarQueue.add("create-event", {
-        bookingId: booking.id,
-        action: "create-event",
-      });
-
-      await analyticsQueue.add("update-stats", {
-        bookingId: booking.id,
+      // Async non-blocking dispatch to Redis queues for clean worker architecture
+      Promise.all([
+        emailQueue.add("booking-confirmation", {
+          bookingId: booking.id,
+          type: "booking-confirmation",
+        }),
+        calendarQueue.add("create-event", {
+          bookingId: booking.id,
+          action: "create-event",
+        }),
+        analyticsQueue.add("update-stats", {
+          bookingId: booking.id,
+        }),
+      ]).catch((err) => {
+        console.error("Background job queue dispatch error:", err);
       });
     }
 
