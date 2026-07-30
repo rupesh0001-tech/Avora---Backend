@@ -203,6 +203,7 @@ export class BookingsService {
         hour: "numeric",
         minute: "numeric",
         hour12: false,
+        hourCycle: "h23",
       }).formatToParts(start);
       const pHour = parts.find((p) => p.type === "hour")?.value ?? "0";
       const pMinute = parts.find((p) => p.type === "minute")?.value ?? "0";
